@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shorts Maker</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--card2:#1f232c;--line:#2b303b;--tx:#e8eaf0;--mut:#8b93a5;--acc:#ffcc33;--acc2:#4cc9f0;--ok:#3ddc84;--bad:#ff5c5c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 "Segoe UI",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+header h1{font-size:20px;margin:0;letter-spacing:.3px}
+header h1 b{color:var(--acc)}
+.chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.chip{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--card2);color:var(--mut);border:1px solid var(--line)}
+.chip.ok{color:var(--ok)} .chip.bad{color:var(--bad)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card2);color:var(--tx);padding:8px 14px;border-radius:9px}
+button:hover{border-color:var(--acc)}
+button.primary{background:var(--acc);color:#1b1500;border-color:var(--acc);font-weight:700}
+button.primary:disabled{opacity:.5;cursor:default}
+button.small{padding:4px 10px;font-size:13px}
+button.danger:hover{border-color:var(--bad);color:var(--bad)}
+input,select{font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+input[type=checkbox]{width:auto}
+label{display:block;font-size:12px;color:var(--mut);margin:0 0 4px}
+main{display:grid;grid-template-columns:290px 1fr;gap:18px;padding:18px 22px;max-width:1500px;margin:auto}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h2{margin:0 0 12px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--mut);cursor:pointer}
+.drop.over,.drop:hover{border-color:var(--acc);color:var(--tx)}
+.job{padding:10px 12px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px;cursor:pointer;background:var(--card2)}
+.job.sel{border-color:var(--acc)}
+.job .n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job .s{font-size:12px;color:var(--mut)}
+.bar{height:8px;background:var(--bg);border-radius:9px;overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0;transition:width .4s}
+.clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;margin-top:14px}
+.clip{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.clip.off{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}
+.score{font-weight:700;color:#1b1500;background:var(--acc);border-radius:7px;padding:1px 8px;font-size:13px}
+.reason{font-size:12px;color:var(--mut);margin:6px 0}
+video{width:100%;border-radius:10px;background:#000;margin-top:8px;max-height:460px}
+.vert video{aspect-ratio:9/16;max-height:520px;object-fit:contain}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;max-height:220px;overflow:auto;font-size:12px;color:var(--mut);white-space:pre-wrap}
+.err{color:var(--bad)}
+.mut{color:var(--mut)}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:14px;max-width:480px;width:92%}
+dialog::backdrop{background:#000a}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;align-items:end}
+.hide{display:none}
+a{color:var(--acc2)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Shorts <b>Maker</b></h1>
+  <span class="mut">long video &rarr; vertical shorts, free, runs only on this PC</span>
+  <div class="chips">
+    <span class="chip" id="cFF">FFmpeg</span>
+    <span class="chip" id="cDev">...</span>
+    <span class="chip" id="cAI">Smart AI</span>
+    <button class="small" onclick="openSettings()">Settings</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="card">
+      <h2>New video</h2>
+      <div class="drop" id="drop" onclick="document.getElementById('file').click()">
+        <div id="dropTxt">Drop a video here<br><span class="mut">or click to choose</span></div>
+      </div>
+      <input type="file" id="file" accept="video/*,.mkv,.mov,.mp4,.webm,.avi,.m4v" class="hide">
+      <label style="margin-top:12px">...or paste the file path on this PC (best for huge files)</label>
+      <input id="localPath" placeholder='C:\Users\you\Videos\podcast.mp4'>
+      <div class="opts" style="margin-top:12px">
+        <div><label>Language spoken</label>
+          <select id="lang">
+            <option value="auto">Auto detect</option>
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="ne">Nepali</option>
+            <option value="hinglish">Hinglish (Hindi in English letters)</option>
+          </select></div>
+        <div><label>Accuracy</label>
+          <select id="quality">
+            <option value="fast">Fast</option>
+            <option value="balanced" selected>Balanced</option>
+            <option value="best">Best (slow)</option>
+          </select></div>
+        <div><label>How many shorts</label><input id="nClips" type="number" min="1" max="30" value="6"></div>
+        <div><label>Length</label>
+          <select id="lenSel">
+            <option value="15,30">15 - 30 s</option>
+            <option value="25,60" selected>25 - 60 s</option>
+            <option value="45,90">45 - 90 s</option>
+          </select></div>
+      </div>
+      <label style="margin-top:12px"><input type="checkbox" id="smart" checked> Smart AI picking (Gemini, free key in Settings)</label>
+      <button class="primary" style="width:100%;margin-top:12px" id="goBtn" onclick="startJob()">Find the best moments</button>
+      <div id="formErr" class="err" style="margin-top:8px"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2>Your projects</h2>
+      <div id="jobList"><span class="mut">Nothing yet.</span></div>
+    </div>
+  </aside>
+
+  <section id="detail">
+    <div class="card"><h2>Welcome</h2>
+      <p class="mut">1. Add a long video. 2. The app listens to it, and finds the best 25-60 second moments. 3. You tick the ones you like, and it makes vertical 9:16 shorts with captions. Nothing leaves your PC except the transcript text if you turn on Smart AI.</p></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <h2 style="margin-top:0">Settings</h2>
+  <label>Gemini API key (free, makes clip picking much smarter)</label>
+  <input id="gkey" type="password" placeholder="paste key here">
+  <p class="mut" style="font-size:13px;margin:6px 0">Get one free in 1 minute (no card): <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It is stored only in a file on this PC. Only the transcript text is sent to Google, never the video.</p>
+  <label>Gemini model</label>
+  <input id="gmodel" placeholder="auto">
+  <label style="margin-top:10px">Caption font (English letters)</label>
+  <input id="fLat">
+  <label style="margin-top:10px">Caption font (Hindi / Nepali letters)</label>
+  <input id="fDev">
+  <div id="setMsg" class="mut" style="margin:10px 0"></div>
+  <div class="row"><button class="primary" onclick="saveSettings()">Save</button><button onclick="testGemini()">Test key</button><button onclick="dlg.close()" style="margin-left:auto">Close</button></div>
+</dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+let jobs=[], cur=null, timer=null, dragFile=null;
+let ropts=Object.assign({reframe:'auto',captions:true,script:'auto',color:'yellow',size:'medium',position:'low',caps:true,loudnorm:true},
+  (()=>{try{return JSON.parse(localStorage.getItem('ropts')||'{}')}catch(e){return {}}})());
+
+async function api(p,o){const r=await fetch(p,o);let j={};try{j=await r.json()}catch(e){}if(!r.ok)throw new Error(j.error||('Error '+r.status));return j}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function parseT(s){s=String(s).trim();if(s.includes(':')){return s.split(':').map(Number).reduce((a,b)=>a*60+b,0)}return parseFloat(s)}
+function fmtT(t){const m=Math.floor(t/60),s=t-m*60;return m+':'+s.toFixed(1).padStart(4,'0')}
+
+async function loadStatus(){
+  try{const s=await api('/api/status');
+    $('cFF').className='chip '+(s.ffmpeg?'ok':'bad');$('cFF').textContent='FFmpeg '+(s.ffmpeg?'ready':'missing');
+    $('cDev').className='chip ok';$('cDev').textContent='Speech on '+s.device;
+    $('cAI').className='chip '+(s.gemini?'ok':'');$('cAI').textContent='Smart AI '+(s.gemini?'on':'off (add key)');
+    if(!s.gemini){$('smart').checked=false}
+  }catch(e){}
+}
+
+// ---------- new job
+const drop=$('drop');
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');setFile(e.dataTransfer.files[0])};
+$('file').onchange=e=>setFile(e.target.files[0]);
+function setFile(f){dragFile=f||null;$('dropTxt').innerHTML=f?('<b>'+esc(f.name)+'</b><br><span class="mut">'+(f.size/1048576).toFixed(0)+' MB</span>'):'Drop a video here<br><span class="mut">or click to choose</span>'}
+
+async function startJob(){
+  $('formErr').textContent='';
+  const fd=new FormData();
+  const lp=$('localPath').value.trim();
+  if(lp)fd.append('local_path',lp);else if(dragFile)fd.append('file',dragFile);else{$('formErr').textContent='Choose a video or paste its path.';return}
+  const [mn,mx]=$('lenSel').value.split(',');
+  fd.append('language',$('lang').value);fd.append('quality',$('quality').value);fd.append('n_clips',$('nClips').value);
+  fd.append('min_len',mn);fd.append('max_len',mx);fd.append('smart',$('smart').checked?'1':'0');
+  $('goBtn').disabled=true;$('goBtn').textContent='Uploading...';
+  try{const j=await api('/api/jobs',{method:'POST',body:fd});cur=j.id;setFile(null);$('localPath').value='';await refresh()}
+  catch(e){$('formErr').textContent=e.message}
+  $('goBtn').disabled=false;$('goBtn').textContent='Find the best moments';
+}
+
+// ---------- polling / render
+async function refresh(){
+  try{jobs=await api('/api/jobs')}catch(e){return}
+  if(!cur&&jobs.length)cur=jobs[0].id;
+  renderList();
+  const j=jobs.find(x=>x.id===cur);
+  if(j)renderDetail(j);
+  const busy=jobs.some(x=>['queued','probing','extracting','transcribing','selecting','rendering'].includes(x.status));
+  clearTimeout(timer);timer=setTimeout(refresh,busy?1500:5000);
+}
+const STAT={queued:'Waiting',probing:'Reading',extracting:'Audio',transcribing:'Listening',selecting:'Choosing',rendering:'Making shorts',ready:'Ready',error:'Problem'};
+function renderList(){
+  $('jobList').innerHTML=jobs.length?jobs.map(j=>`<div class="job ${j.id===cur?'sel':''}" onclick="pick('${j.id}')"><div class="n">${esc(j.name)}</div><div class="s">${STAT[j.status]||j.status}${j.clips&&j.clips.length?' · '+j.clips.length+' clips':''}</div></div>`).join(''):'<span class="mut">Nothing yet.</span>';
+}
+function pick(id){cur=id;editing=null;refresh()}
+
+let editing=null; // keeps user's edits while polling
+function snapshotEdits(j){
+  const e={};(j.clips||[]).forEach(c=>{const el=document.getElementById('c'+c.id);if(!el)return;
+    e[c.id]={on:$('on'+c.id).checked,t:$('ti'+c.id).value,s:$('st'+c.id).value,e:$('en'+c.id).value}});return e}
+function renderDetail(j){
+  const active=['queued','probing','extracting','transcribing','selecting','rendering'].includes(j.status);
+  const prev=(editing&&editing.id===j.id)?editing.data:snapshotEdits(j);
+  const typing=document.activeElement&&['INPUT','SELECT'].includes(document.activeElement.tagName)&&$('detail').contains(document.activeElement);
+  if(typing&&!active)return;       // don't wipe what the user is typing
+  editing={id:j.id,data:prev};
+  const pct=Math.round((j.progress||0)*100);
+  let h=`<div class="card"><div class="row"><h2 style="margin:0">${esc(j.name)}</h2>
+    <button class="small danger" style="margin-left:auto" onclick="delJob('${j.id}')" ${active?'disabled':''}>Remove</button></div>
+    <div class="${j.status==='error'?'err':'mut'}" style="margin-top:6px">${esc(j.message)}</div>
+    ${active?`<div class="bar"><i style="width:${pct}%"></i></div><div class="mut">${pct}%</div>`:''}
+    <details style="margin-top:8px"><summary class="mut">Details</summary><pre>${esc((j.log||[]).join('\n'))}</pre></details></div>`;
+  if(j.clips&&j.clips.length&&!['probing','extracting','transcribing','selecting'].includes(j.status)){
+    h+=optionsPanel(j,active);
+    h+=`<div class="clips">`+j.clips.map(c=>clipCard(j,c,prev[c.id],active)).join('')+`</div>`;
+  }
+  $('detail').innerHTML=h;
+}
+function sel(id,opts,val){return `<select id="${id}" onchange="saveOpts()">`+opts.map(([v,t])=>`<option value="${v}" ${v==val?'selected':''}>${t}</option>`).join('')+`</select>`}
+function optionsPanel(j,active){
+  const o=ropts;
+  const n=j.clips.filter(c=>c.status==='done').length;
+  return `<div class="card" style="margin-top:14px"><h2>Short settings</h2><div class="opts">
+   <div><label>Framing</label>${sel('oReframe',[['auto','Follow the speaker'],['center','Center crop'],['blur','Whole video + blurred background']],o.reframe)}</div>
+   <div><label>Captions</label>${sel('oCaps',[['1','On (highlight each word)'],['0','Off']],o.captions?'1':'0')}</div>
+   <div><label>Caption letters</label>${sel('oScript',[['auto','Auto'],['same','Same as speech'],['roman','English letters (Hinglish)']],o.script)}</div>
+   <div><label>Highlight colour</label>${sel('oColor',[['yellow','Yellow'],['green','Green'],['cyan','Cyan'],['pink','Pink'],['orange','Orange'],['white','White']],o.color)}</div>
+   <div><label>Caption size</label>${sel('oSize',[['small','Small'],['medium','Medium'],['large','Large']],o.size)}</div>
+   <div><label>Caption position</label>${sel('oPos',[['low','Low'],['middle','Middle'],['high','High']],o.position)}</div>
+   <div><label>BIG LETTERS</label>${sel('oCapsL',[['1','Yes'],['0','No']],o.caps?'1':'0')}</div>
+   <div><label>Even loudness</label>${sel('oLoud',[['1','Yes'],['0','No']],o.loudnorm?'1':'0')}</div>
+  </div>
+  <div class="row" style="margin-top:14px;flex-wrap:wrap">
+   <button class="primary" ${active?'disabled':''} onclick="makeShorts('${j.id}')">Make shorts from ticked clips</button>
+   ${n?`<a href="/api/jobs/${j.id}/zip"><button>Download all (${n}) as zip</button></a>`:''}
+   <span class="mut" style="margin-left:auto">Picker: ${j.picker==='gemini'?'Gemini (smart)':'offline'}</span>
+   <button class="small" ${active?'disabled':''} onclick="repick('${j.id}')">Pick different clips</button>
+  </div></div>`;
+}
+function saveOpts(){
+  ropts={reframe:$('oReframe').value,captions:$('oCaps').value==='1',script:$('oScript').value,color:$('oColor').value,
+    size:$('oSize').value,position:$('oPos').value,caps:$('oCapsL').value==='1',loudnorm:$('oLoud').value==='1'};
+  try{localStorage.setItem('ropts',JSON.stringify(ropts))}catch(e){}
+}
+function clipCard(j,c,e,active){
+  e=e||{on:true,t:c.title,s:fmtT(c.start),e:fmtT(c.end)};
+  const done=c.status==='done'&&c.file;
+  return `<div class="clip ${e.on?'':'off'}" id="c${c.id}">
+   <div class="row"><input type="checkbox" id="on${c.id}" ${e.on?'checked':''} onchange="this.closest('.clip').classList.toggle('off',!this.checked)">
+     <input id="ti${c.id}" value="${esc(e.t)}" style="font-weight:600"><span class="score" title="how good this moment looks">${c.score}</span></div>
+   <div class="reason">${esc(c.reason||'')}</div>
+   <div class="row"><div style="flex:1"><label>Start</label><input id="st${c.id}" value="${e.s}"></div>
+     <div style="flex:1"><label>End</label><input id="en${c.id}" value="${e.e}"></div>
+     <button class="small" style="margin-top:18px" onclick="peek('${j.id}',${c.id})">&#9654; Preview</button></div>
+   <div id="pv${c.id}"></div>
+   ${c.status==='rendering'||c.status==='queued'?'<div class="mut" style="margin-top:8px">Making this short...</div>':''}
+   ${c.status==='error'?`<div class="err" style="margin-top:8px">${esc(c.error||'failed')}</div>`:''}
+   ${done?`<div class="vert"><video controls preload="metadata" src="/api/jobs/${j.id}/out/${c.file}?v=${c.ver}"></video></div>
+     <a href="/api/jobs/${j.id}/out/${c.file}?dl=1&v=${c.ver}"><button class="small" style="margin-top:8px">Download</button></a>`:''}
+  </div>`;
+}
+function peek(jid,id){
+  const s=parseT($('st'+id).value),e=parseT($('en'+id).value);
+  $('pv'+id).innerHTML=`<video controls autoplay src="/api/jobs/${jid}/source#t=${s},${e}"></video><div class="mut" style="font-size:12px">If this does not play, your browser cannot show this video type. The finished short will still work.</div>`;
+}
+async function makeShorts(jid){
+  saveOpts();
+  const j=jobs.find(x=>x.id===jid);const clips=[];
+  for(const c of j.clips){if(!$('on'+c.id)||!$('on'+c.id).checked)continue;
+    const s=parseT($('st'+c.id).value),e=parseT($('en'+c.id).value);
+    if(isNaN(s)||isNaN(e)||e<=s){alert('Check the start and end of clip '+(c.id+1));return}
+    clips.push({id:c.id,start:s,end:e,title:$('ti'+c.id).value})}
+  try{editing=null;await api(`/api/jobs/${jid}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clips,options:ropts})});refresh()}
+  catch(e){alert(e.message)}
+}
+async function repick(jid){
+  const n=prompt('How many clips?','6');if(!n)return;
+  const l=prompt('Length range in seconds, like 25-60','25-60');if(!l)return;
+  const [mn,mx]=l.split('-').map(Number);
+  try{editing=null;await api(`/api/jobs/${jid}/repick`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_clips:+n,min_len:mn,max_len:mx,smart:!!$('cAI').classList.contains('ok')})});refresh()}catch(e){alert(e.message)}
+}
+async function delJob(jid){if(!confirm('Remove this project and its shorts? Your original video is not touched.'))return;
+  try{await api('/api/jobs/'+jid,{method:'DELETE'});cur=null;$('detail').innerHTML='';refresh()}catch(e){alert(e.message)}}
+
+// ---------- settings
+const dlg=$('dlg');
+async function openSettings(){const s=await api('/api/settings');
+  $('gkey').value='';$('gkey').placeholder=s.gemini_key_set?'(key saved - paste a new one to replace)':'paste key here';
+  $('gmodel').value=s.gemini_model;$('fLat').value=s.font_latin;$('fDev').value=s.font_devanagari;$('setMsg').textContent='';dlg.showModal()}
+async function saveSettings(){
+  const b={gemini_model:$('gmodel').value||'auto',font_latin:$('fLat').value,font_devanagari:$('fDev').value};
+  if($('gkey').value.trim())b.gemini_key=$('gkey').value.trim();
+  await api('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+  $('setMsg').textContent='Saved.';loadStatus();$('smart').checked=true}
+async function testGemini(){$('setMsg').textContent='Testing...';
+  try{const r=await api('/api/test-gemini',{method:'POST'});$('setMsg').textContent='Key works. Using model: '+r.model}
+  catch(e){$('setMsg').textContent='Problem: '+e.message}}
+
+loadStatus();refresh();
+</script>
+</body>
+</html>

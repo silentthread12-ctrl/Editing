@@ -1,0 +1,13 @@
+SHORTS MAKER - private, free, runs only on your PC
+
+1. Double-click  start.bat
+   First time it sets itself up (a few minutes, needs internet): packages, FFmpeg, GPU boost.
+   After that it starts in seconds and opens your browser at http://127.0.0.1:5055
+2. Add a long video (or paste its file path), pick the language, press "Find the best moments".
+3. Tick the clips you like, press "Make shorts", watch and download them.
+
+Smarter clip picking (free): Settings -> paste a free Gemini key from https://aistudio.google.com/apikey
+Without a key it still works using the offline picker.
+
+First speech run downloads the AI speech model (about 1.6 GB for Balanced). Keep the window open.
+Your videos and shorts stay in the "workspace" folder here.
