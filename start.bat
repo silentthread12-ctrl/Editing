@@ -2,6 +2,8 @@
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 title Shorts Maker
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 echo.
 echo  ==========================================
 echo    Shorts Maker - private, free, on this PC

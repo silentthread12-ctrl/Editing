@@ -72,7 +72,6 @@ def heuristic_pick(segments, energy, n, min_len, max_len):
     cands = []
     for i in range(S):
         st = segments[i]["start"]
-        hook_txt = segments[i]["text"]
         hook_kw = _seg_feats(segments[i])
         hook = 1.0 if (hook_kw[2] or hook_kw[1] or hook_kw[4]) else 0.35
         for j in range(i, S):
@@ -88,7 +87,8 @@ def heuristic_pick(segments, energy, n, min_len, max_len):
             wps = words / dur
             s_den = 1 - min(1.0, abs(wps - 2.6) / 2.0)
             if e_pre is not None:
-                a, b = int(st), max(int(st) + 1, min(len(energy), int(en)))
+                a = min(int(st), len(energy) - 1)
+                b = max(a + 1, min(len(energy), int(en)))
                 mean_db = (e_pre[b] - e_pre[a]) / (b - a)
                 s_en = float(np.clip((mean_db - p20) / (p90 - p20), 0, 1))
                 s_sil = float(np.clip(1 - 2 * (sil_pre[b] - sil_pre[a]) / (b - a), 0, 1))

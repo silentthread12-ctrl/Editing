@@ -25,6 +25,19 @@ SAVE_LOCK = threading.Lock()
 JOBS = {}
 
 
+ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+
+
+@app.before_request
+def only_this_pc():
+    """Block other websites (and DNS-rebinding tricks) from talking to this local server."""
+    if request.host not in ALLOWED_HOSTS:
+        abort(403)
+    origin = request.headers.get("Origin")
+    if origin and origin.replace("http://", "") not in ALLOWED_HOSTS:
+        abort(403)
+
+
 def jdir(jid):
     return common.WORK / jid
 
@@ -83,6 +96,11 @@ def analyze(job):
                                   duration=info["duration"],
                                   on_progress=lambda p: job.update(progress=0.05 + 0.05 * p))
 
+            if info["duration"] <= 0:       # some formats (webm) do not report a length
+                import wave
+                with wave.open(str(audio)) as w:
+                    info["duration"] = w.getnframes() / w.getframerate()
+                log(job, f"Length measured from audio: {info['duration'] / 60:.1f} minutes")
             tj = d / "transcript.json"
             tr = None
             if tj.exists():
@@ -215,13 +233,18 @@ def test_gemini():
 
 
 def public(job):
-    return {k: v for k, v in job.items() if k != "source_path_internal"}
+    for _ in range(5):          # the worker thread may be changing it while we copy
+        try:
+            return json.loads(json.dumps(job, ensure_ascii=False))
+        except (RuntimeError, TypeError):
+            time.sleep(0.02)
+    return {k: v for k, v in job.items()}
 
 
 @app.route("/api/jobs", methods=["GET", "POST"])
 def jobs():
     if request.method == "GET":
-        return jsonify(sorted((public(j) for j in JOBS.values()), key=lambda j: -j["created"]))
+        return jsonify(sorted((public(j) for j in list(JOBS.values())), key=lambda j: -j["created"]))
     form = request.form
     jid = uuid.uuid4().hex[:12]
     d = jdir(jid)

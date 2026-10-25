@@ -45,6 +45,7 @@ def device_label():
 
 def get_model(quality, log):
     global _model, _model_key, _device_used
+    _add_cuda_paths()
     from faster_whisper import WhisperModel
     name = MODEL_BY_QUALITY.get(quality, MODEL_BY_QUALITY["balanced"])
     if _model is not None and _model_key == name:

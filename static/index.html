@@ -173,42 +173,40 @@ async function startJob(){
 }
 
 // ---------- polling / render
+const BUSY=['queued','probing','extracting','transcribing','selecting','rendering'];
+const STAT={queued:'Waiting',probing:'Reading',extracting:'Audio',transcribing:'Listening',selecting:'Choosing',rendering:'Making shorts',ready:'Ready',error:'Problem'};
+let shownJob=null, sig='', logOpen=false, keepEdits=true;
 async function refresh(){
-  try{jobs=await api('/api/jobs')}catch(e){return}
+  try{jobs=await api('/api/jobs')}catch(e){clearTimeout(timer);timer=setTimeout(refresh,4000);return}
+  if(cur&&!jobs.find(x=>x.id===cur))cur=null;
   if(!cur&&jobs.length)cur=jobs[0].id;
   renderList();
   const j=jobs.find(x=>x.id===cur);
-  if(j)renderDetail(j);
-  const busy=jobs.some(x=>['queued','probing','extracting','transcribing','selecting','rendering'].includes(x.status));
-  clearTimeout(timer);timer=setTimeout(refresh,busy?1500:5000);
+  if(j)renderDetail(j);else{$('detail').innerHTML='';shownJob=null}
+  clearTimeout(timer);timer=setTimeout(refresh,jobs.some(x=>BUSY.includes(x.status))?1500:5000);
 }
-const STAT={queued:'Waiting',probing:'Reading',extracting:'Audio',transcribing:'Listening',selecting:'Choosing',rendering:'Making shorts',ready:'Ready',error:'Problem'};
 function renderList(){
   $('jobList').innerHTML=jobs.length?jobs.map(j=>`<div class="job ${j.id===cur?'sel':''}" onclick="pick('${j.id}')"><div class="n">${esc(j.name)}</div><div class="s">${STAT[j.status]||j.status}${j.clips&&j.clips.length?' · '+j.clips.length+' clips':''}</div></div>`).join(''):'<span class="mut">Nothing yet.</span>';
 }
-function pick(id){cur=id;editing=null;refresh()}
-
-let editing=null; // keeps user's edits while polling
-function snapshotEdits(j){
-  const e={};(j.clips||[]).forEach(c=>{const el=document.getElementById('c'+c.id);if(!el)return;
-    e[c.id]={on:$('on'+c.id).checked,t:$('ti'+c.id).value,s:$('st'+c.id).value,e:$('en'+c.id).value}});return e}
+function pick(id){cur=id;refresh()}
+function snapshotEdits(){
+  const e={};document.querySelectorAll('#rest .clip').forEach(el=>{const id=el.id.slice(1);
+    e[id]={on:$('on'+id).checked,t:$('ti'+id).value,s:$('st'+id).value,e:$('en'+id).value}});return e}
 function renderDetail(j){
-  const active=['queued','probing','extracting','transcribing','selecting','rendering'].includes(j.status);
-  const prev=(editing&&editing.id===j.id)?editing.data:snapshotEdits(j);
-  const typing=document.activeElement&&['INPUT','SELECT'].includes(document.activeElement.tagName)&&$('detail').contains(document.activeElement);
-  if(typing&&!active)return;       // don't wipe what the user is typing
-  editing={id:j.id,data:prev};
+  const active=BUSY.includes(j.status);
+  if(shownJob!==j.id){$('detail').innerHTML='<div id="top"></div><div id="rest"></div>';shownJob=j.id;sig='';keepEdits=false}
   const pct=Math.round((j.progress||0)*100);
-  let h=`<div class="card"><div class="row"><h2 style="margin:0">${esc(j.name)}</h2>
+  $('top').innerHTML=`<div class="card"><div class="row"><h2 style="margin:0">${esc(j.name)}</h2>
     <button class="small danger" style="margin-left:auto" onclick="delJob('${j.id}')" ${active?'disabled':''}>Remove</button></div>
     <div class="${j.status==='error'?'err':'mut'}" style="margin-top:6px">${esc(j.message)}</div>
     ${active?`<div class="bar"><i style="width:${pct}%"></i></div><div class="mut">${pct}%</div>`:''}
-    <details style="margin-top:8px"><summary class="mut">Details</summary><pre>${esc((j.log||[]).join('\n'))}</pre></details></div>`;
-  if(j.clips&&j.clips.length&&!['probing','extracting','transcribing','selecting'].includes(j.status)){
-    h+=optionsPanel(j,active);
-    h+=`<div class="clips">`+j.clips.map(c=>clipCard(j,c,prev[c.id],active)).join('')+`</div>`;
-  }
-  $('detail').innerHTML=h;
+    <details style="margin-top:8px" ${logOpen?'open':''} ontoggle="logOpen=this.open"><summary class="mut">Details</summary><pre>${esc((j.log||[]).join('\n'))}</pre></details></div>`;
+  const showClips=j.clips&&j.clips.length&&!['probing','extracting','transcribing','selecting'].includes(j.status);
+  const s2=showClips?JSON.stringify([j.status,j.picker,j.clips.map(c=>[c.id,c.status,c.file,c.ver,c.start,c.end,c.title,c.score,c.error])]):'none';
+  if(s2===sig)return;                     // nothing changed: leave videos and typing alone
+  sig=s2;
+  const prev=keepEdits?snapshotEdits():{};keepEdits=true;
+  $('rest').innerHTML=showClips?optionsPanel(j,active)+`<div class="clips">`+j.clips.map(c=>clipCard(j,c,prev[c.id],active)).join('')+`</div>`:'';
 }
 function sel(id,opts,val){return `<select id="${id}" onchange="saveOpts()">`+opts.map(([v,t])=>`<option value="${v}" ${v==val?'selected':''}>${t}</option>`).join('')+`</select>`}
 function optionsPanel(j,active){
@@ -216,7 +214,7 @@ function optionsPanel(j,active){
   const n=j.clips.filter(c=>c.status==='done').length;
   return `<div class="card" style="margin-top:14px"><h2>Short settings</h2><div class="opts">
    <div><label>Framing</label>${sel('oReframe',[['auto','Follow the speaker'],['center','Center crop'],['blur','Whole video + blurred background']],o.reframe)}</div>
-   <div><label>Captions</label>${sel('oCaps',[['1','On (highlight each word)'],['0','Off']],o.captions?'1':'0')}</div>
+   <div><label>Captions</label>${sel('oCaps',[['1','On'],['0','Off']],o.captions?'1':'0')}</div>
    <div><label>Caption letters</label>${sel('oScript',[['auto','Auto'],['same','Same as speech'],['roman','English letters (Hinglish)']],o.script)}</div>
    <div><label>Highlight colour</label>${sel('oColor',[['yellow','Yellow'],['green','Green'],['cyan','Cyan'],['pink','Pink'],['orange','Orange'],['white','White']],o.color)}</div>
    <div><label>Caption size</label>${sel('oSize',[['small','Small'],['medium','Medium'],['large','Large']],o.size)}</div>
@@ -264,17 +262,17 @@ async function makeShorts(jid){
     const s=parseT($('st'+c.id).value),e=parseT($('en'+c.id).value);
     if(isNaN(s)||isNaN(e)||e<=s){alert('Check the start and end of clip '+(c.id+1));return}
     clips.push({id:c.id,start:s,end:e,title:$('ti'+c.id).value})}
-  try{editing=null;await api(`/api/jobs/${jid}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clips,options:ropts})});refresh()}
+  try{await api(`/api/jobs/${jid}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clips,options:ropts})});refresh()}
   catch(e){alert(e.message)}
 }
 async function repick(jid){
   const n=prompt('How many clips?','6');if(!n)return;
   const l=prompt('Length range in seconds, like 25-60','25-60');if(!l)return;
   const [mn,mx]=l.split('-').map(Number);
-  try{editing=null;await api(`/api/jobs/${jid}/repick`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_clips:+n,min_len:mn,max_len:mx,smart:!!$('cAI').classList.contains('ok')})});refresh()}catch(e){alert(e.message)}
+  try{keepEdits=false;await api(`/api/jobs/${jid}/repick`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_clips:+n,min_len:mn,max_len:mx,smart:!!$('cAI').classList.contains('ok')})});refresh()}catch(e){alert(e.message)}
 }
 async function delJob(jid){if(!confirm('Remove this project and its shorts? Your original video is not touched.'))return;
-  try{await api('/api/jobs/'+jid,{method:'DELETE'});cur=null;$('detail').innerHTML='';refresh()}catch(e){alert(e.message)}}
+  try{await api('/api/jobs/'+jid,{method:'DELETE'});cur=null;shownJob=null;$('detail').innerHTML='';refresh()}catch(e){alert(e.message)}}
 
 // ---------- settings
 const dlg=$('dlg');

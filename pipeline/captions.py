@@ -87,7 +87,6 @@ def build_ass(words, clip_start, opts, cfg, out_path):
     for li, line in enumerate(lines):
         has_deva = any(DEVA.search(w["t"]) for w in line)
         fn = f"{{\\fn{font_d}}}" if has_deva else ""
-        line_end = line[-1]["e"]
         for k, w in enumerate(line):
             st = w["s"]
             en = line[k + 1]["s"] if k + 1 < len(line) else max(w["e"], st + 0.25)
