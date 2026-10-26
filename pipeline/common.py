@@ -14,8 +14,8 @@ CONFIG_FILE = ROOT / "config.json"
 DEFAULTS = {
     "gemini_key": "",
     "gemini_model": "auto",
-    "font_latin": "Arial Black",
-    "font_devanagari": "Nirmala UI",
+    "font_latin": os.environ.get("FONT_LATIN", "Arial Black"),
+    "font_devanagari": os.environ.get("FONT_DEVANAGARI", "Nirmala UI"),
 }
 
 
@@ -25,6 +25,8 @@ def load_config():
         cfg.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
     except Exception:
         pass
+    if os.environ.get("GEMINI_API_KEY"):      # online version: key kept as a secret, not in a file
+        cfg["gemini_key"] = os.environ["GEMINI_API_KEY"].strip()
     return cfg
 
 

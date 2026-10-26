@@ -74,8 +74,8 @@ a{color:var(--acc2)}
         <div id="dropTxt">Drop a video here<br><span class="mut">or click to choose</span></div>
       </div>
       <input type="file" id="file" accept="video/*,.mkv,.mov,.mp4,.webm,.avi,.m4v" class="hide">
-      <label style="margin-top:12px">...or paste the file path on this PC (best for huge files)</label>
-      <input id="localPath" placeholder='C:\Users\you\Videos\podcast.mp4'>
+      <div id="lpWrap"><label style="margin-top:12px">...or paste the file path on this PC (best for huge files)</label>
+      <input id="localPath" placeholder='C:\Users\you\Videos\podcast.mp4'></div>
       <div class="opts" style="margin-top:12px">
         <div><label>Language spoken</label>
           <select id="lang">
@@ -132,7 +132,7 @@ a{color:var(--acc2)}
 
 <script>
 const $=id=>document.getElementById(id);
-let jobs=[], cur=null, timer=null, dragFile=null;
+let jobs=[], cur=null, timer=null, dragFile=null, CHUNK=24*1024*1024;
 let ropts=Object.assign({reframe:'auto',captions:true,script:'auto',color:'yellow',size:'medium',position:'low',caps:true,loudnorm:true},
   (()=>{try{return JSON.parse(localStorage.getItem('ropts')||'{}')}catch(e){return {}}})());
 
@@ -147,9 +147,25 @@ async function loadStatus(){
     $('cDev').className='chip ok';$('cDev').textContent='Speech on '+s.device;
     $('cAI').className='chip '+(s.gemini?'ok':'');$('cAI').textContent='Smart AI '+(s.gemini?'on':'off (add key)');
     if(!s.gemini){$('smart').checked=false}
+    if(s.hosted){$('lpWrap').classList.add('hide');if(!window.__qset){$('quality').value='fast';window.__qset=1}}
   }catch(e){}
 }
 
+async function uploadFile(f,onp){
+  const st=await api('/api/upload/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:f.name})});
+  const n=Math.max(1,Math.ceil(f.size/CHUNK));
+  for(let i=0;i<n;i++){
+    let ok=false;
+    for(let t=0;t<4&&!ok;t++){
+      try{const r=await fetch(`/api/upload/${st.id}/chunk?i=${i}`,{method:'POST',body:f.slice(i*CHUNK,(i+1)*CHUNK)});
+        if(r.ok)ok=true;else if(r.status===409){const j=await r.json();if(j.next>i)ok=true}}catch(e){}
+      if(!ok)await new Promise(r=>setTimeout(r,1500*(t+1)));
+    }
+    if(!ok)throw new Error('Upload failed. Check your internet and try again.');
+    onp((i+1)/n);
+  }
+  return st.id;
+}
 // ---------- new job
 const drop=$('drop');
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
@@ -162,12 +178,14 @@ async function startJob(){
   $('formErr').textContent='';
   const fd=new FormData();
   const lp=$('localPath').value.trim();
-  if(lp)fd.append('local_path',lp);else if(dragFile)fd.append('file',dragFile);else{$('formErr').textContent='Choose a video or paste its path.';return}
+  if(!lp&&!dragFile){$('formErr').textContent='Choose a video or paste its path.';return}
+  if(lp)fd.append('local_path',lp);
   const [mn,mx]=$('lenSel').value.split(',');
   fd.append('language',$('lang').value);fd.append('quality',$('quality').value);fd.append('n_clips',$('nClips').value);
   fd.append('min_len',mn);fd.append('max_len',mx);fd.append('smart',$('smart').checked?'1':'0');
   $('goBtn').disabled=true;$('goBtn').textContent='Uploading...';
-  try{const j=await api('/api/jobs',{method:'POST',body:fd});cur=j.id;setFile(null);$('localPath').value='';await refresh()}
+  try{if(!lp&&dragFile)fd.append('upload_id',await uploadFile(dragFile,p=>$('goBtn').textContent='Uploading '+Math.round(p*100)+'%'));
+    const j=await api('/api/jobs',{method:'POST',body:fd});cur=j.id;setFile(null);$('localPath').value='';await refresh()}
   catch(e){$('formErr').textContent=e.message}
   $('goBtn').disabled=false;$('goBtn').textContent='Find the best moments';
 }

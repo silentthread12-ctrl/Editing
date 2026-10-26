@@ -1,0 +1,7 @@
+.git
+.venv
+bin
+workspace
+config.json
+__pycache__
+*.pyc

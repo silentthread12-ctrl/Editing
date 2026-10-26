@@ -1,6 +1,8 @@
 """Shorts Maker - private local website. Run with start.bat (Windows)."""
+import hmac
 import io
 import json
+import os
 import re
 import shutil
 import threading
@@ -11,13 +13,15 @@ import webbrowser
 import zipfile
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, request, send_file
+from flask import Flask, Response, abort, jsonify, request, send_file
 
 from pipeline import clips as clipmod
 from pipeline import common, transcribe
 from pipeline import render as rendermod
 
-PORT = 5055
+HOSTED = bool(os.environ.get("HOSTED"))          # online (Hugging Face) mode
+PORT = int(os.environ.get("PORT", 5055))
+PASSWORD = os.environ.get("APP_PASSWORD", "")
 ROOT = common.ROOT
 app = Flask(__name__, static_folder=None)
 LOCK = threading.Lock()          # one heavy job at a time
@@ -29,13 +33,18 @@ ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
 
 @app.before_request
-def only_this_pc():
-    """Block other websites (and DNS-rebinding tricks) from talking to this local server."""
-    if request.host not in ALLOWED_HOSTS:
-        abort(403)
-    origin = request.headers.get("Origin")
-    if origin and origin.replace("http://", "") not in ALLOWED_HOSTS:
-        abort(403)
+def guard():
+    """Optional password online; locally only this PC may talk to the server."""
+    if PASSWORD:
+        auth = request.authorization
+        if not auth or not hmac.compare_digest((auth.password or "").encode(), PASSWORD.encode()):
+            return Response("Password needed", 401, {"WWW-Authenticate": 'Basic realm="Shorts Maker"'})
+    if not HOSTED:
+        if request.host not in ALLOWED_HOSTS:
+            abort(403)
+        origin = request.headers.get("Origin")
+        if origin and origin.replace("http://", "") not in ALLOWED_HOSTS:
+            abort(403)
 
 
 def jdir(jid):
@@ -200,7 +209,7 @@ def status():
     except Exception:
         ff = False
     cfg = common.load_config()
-    return jsonify(ffmpeg=ff, device=transcribe.device_label(), gemini=bool(cfg.get("gemini_key")))
+    return jsonify(ffmpeg=ff, device=transcribe.device_label(), gemini=bool(cfg.get("gemini_key")), hosted=HOSTED)
 
 
 @app.route("/api/settings", methods=["GET", "POST"])
@@ -241,6 +250,51 @@ def public(job):
     return {k: v for k, v in job.items()}
 
 
+UPLOADS = common.WORK / "_uploads"
+UPLOAD_ID = re.compile(r"^[0-9a-f]{12}$")
+
+
+@app.route("/api/upload/start", methods=["POST"])
+def up_start():
+    data = request.get_json(force=True)
+    uid = uuid.uuid4().hex[:12]
+    d = UPLOADS / uid
+    d.mkdir(parents=True)
+    name = Path(str(data.get("name") or "video.mp4")).name
+    ext = Path(name).suffix.lower()[:8] or ".mp4"
+    (d / "meta.json").write_text(json.dumps({"name": name, "ext": ext, "next": 0}), encoding="utf-8")
+    return jsonify(id=uid)
+
+
+@app.route("/api/upload/<uid>/chunk", methods=["POST"])
+def up_chunk(uid):
+    if not UPLOAD_ID.match(uid) or not (UPLOADS / uid).is_dir():
+        abort(404)
+    d = UPLOADS / uid
+    meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+    i = int(request.args.get("i", -1))
+    if i != meta["next"]:
+        return jsonify(error="out of order", next=meta["next"]), 409
+    with open(d / "data", "ab") as f:
+        f.write(request.get_data())
+    meta["next"] = i + 1
+    (d / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    return jsonify(next=meta["next"])
+
+
+def cleanup_old(days=3):
+    """Online mode: free disk space by removing old projects."""
+    cutoff = time.time() - days * 86400
+    for jid, j in list(JOBS.items()):
+        if j["created"] < cutoff and j["status"] in ("ready", "error"):
+            JOBS.pop(jid, None)
+            shutil.rmtree(jdir(jid), ignore_errors=True)
+    if UPLOADS.exists():
+        for p in UPLOADS.iterdir():
+            if p.stat().st_mtime < cutoff:
+                shutil.rmtree(p, ignore_errors=True)
+
+
 @app.route("/api/jobs", methods=["GET", "POST"])
 def jobs():
     if request.method == "GET":
@@ -251,7 +305,21 @@ def jobs():
     d.mkdir(parents=True)
     local = (form.get("local_path") or "").strip().strip('"')
     f = request.files.get("file")
-    if local:
+    upid = (form.get("upload_id") or "").strip()
+    if HOSTED:
+        local = ""                      # never read files from the server's own disk
+        cleanup_old()
+    if upid:
+        ud = UPLOADS / upid
+        if not UPLOAD_ID.match(upid) or not (ud / "data").is_file():
+            shutil.rmtree(d, ignore_errors=True)
+            return jsonify(error="The upload was not finished. Please try again."), 400
+        meta = json.loads((ud / "meta.json").read_text(encoding="utf-8"))
+        dest = d / ("source" + meta["ext"])
+        shutil.move(str(ud / "data"), str(dest))
+        shutil.rmtree(ud, ignore_errors=True)
+        source, name = str(dest), meta["name"]
+    elif local:
         p = Path(local)
         if not p.is_file():
             shutil.rmtree(d, ignore_errors=True)
@@ -385,6 +453,10 @@ def job_zip(jid):
 
 if __name__ == "__main__":
     load_jobs()
-    print(f"\n  Shorts Maker is running at http://127.0.0.1:{PORT}  (only this PC can open it)\n", flush=True)
-    threading.Timer(1.5, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()
-    app.run(host="127.0.0.1", port=PORT, threaded=True)
+    if HOSTED:
+        print(f"\n  Shorts Maker (online mode) on port {PORT}\n", flush=True)
+        app.run(host="0.0.0.0", port=PORT, threaded=True)
+    else:
+        print(f"\n  Shorts Maker is running at http://127.0.0.1:{PORT}  (only this PC can open it)\n", flush=True)
+        threading.Timer(1.5, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()
+        app.run(host="127.0.0.1", port=PORT, threaded=True)
